@@ -1,7 +1,14 @@
 import React from 'react';
 import { Layers, CheckCircle2, Award, Laptop, Network, Cpu, ArrowUpRight } from 'lucide-react';
 
-export default function GradeDistributionCard({ students = [], onNavigateTab }) {
+export default function GradeDistributionCard({ user, students = [], onNavigateTab }) {
+  const r = (user?.role || '').toLowerCase();
+  const isTechnicalEngineer = r === 'technicalengineer';
+  const isStudentAffairs = r === 'studentaffairs';
+
+  const targetTab = isStudentAffairs ? 'affairs' : 'teacher';
+  const buttonLabel = isTechnicalEngineer ? 'معامل التخصص والتدريب' : isStudentAffairs ? 'كشوف الفصول والطلاب' : 'جدول الحصص والفصول';
+
   const g1Students = students.filter(s => Number(s.grade) === 1 || (s.classroom && s.classroom.toUpperCase().startsWith('A')));
   const g2Students = students.filter(s => Number(s.grade) === 2 || (s.classroom && s.classroom.toUpperCase().startsWith('B')));
   const g3Students = students.filter(s => Number(s.grade) === 3 || (s.classroom && s.classroom.toUpperCase().startsWith('C')));
@@ -67,10 +74,10 @@ export default function GradeDistributionCard({ students = [], onNavigateTab }) 
         </div>
 
         <button
-          onClick={() => onNavigateTab && onNavigateTab('teacher')}
+          onClick={() => onNavigateTab && onNavigateTab(targetTab)}
           className="text-xs font-black text-[#5C2C90] hover:text-[#421d69] flex items-center gap-1 self-start sm:self-auto bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-xl transition-colors cursor-pointer"
         >
-          <span>جدول الحصص</span>
+          <span>{buttonLabel}</span>
           <ArrowUpRight size={14} />
         </button>
       </div>

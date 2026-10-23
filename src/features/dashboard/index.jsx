@@ -26,11 +26,13 @@ export default function DashboardView({ user, onNavigateTab }) {
 
       {/* 2. Interactive Quick Shortcuts */}
       <DashboardShortcuts
+        user={user}
         onNavigateTab={onNavigateTab}
       />
 
       {/* 3. Numerical KPIs & Real-time Metrics */}
       <DashboardMetricsGrid
+        user={user}
         metrics={metrics}
         loading={loading}
         onNavigateTab={onNavigateTab}
@@ -38,6 +40,7 @@ export default function DashboardView({ user, onNavigateTab }) {
 
       {/* 4. Grade & Technical Tracks Distribution */}
       <GradeDistributionCard
+        user={user}
         students={students}
         onNavigateTab={onNavigateTab}
       />
