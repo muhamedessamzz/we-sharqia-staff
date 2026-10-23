@@ -12,7 +12,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       '/api': {
-        target: 'http://we-sharqia.tryasp.net',
+        target: 'http://wesharqia.runasp.net',
         changeOrigin: true,
         secure: false,
       }
