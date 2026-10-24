@@ -296,7 +296,7 @@ export default function AdminFeature({ user }) {
       {/* SECTION: MASTER SCHEDULE & SUPERVISION                    */}
       {/* ========================================================= */}
       {adminSection === 'schedule' && (
-        <MasterScheduleViewer />
+        <MasterScheduleViewer user={user} />
       )}
 
       {/* ========================================================= */}

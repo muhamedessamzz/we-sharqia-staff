@@ -182,36 +182,38 @@ export default function TeacherScheduleTab({ user, permissions }) {
                 </div>
               </div>
 
-              {/* Staff Switcher for Pre-Registration Testing */}
-              <div className="bg-white/15 backdrop-blur-md p-2 rounded-2xl border border-white/20">
-                <label className="block text-[10px] text-purple-200 font-black mb-1">
-                  استعراض جدول أي زميل (28 معلم ومهندس):
-                </label>
-                <select
-                  value={selectedStaffName || matchedStaff.canonicalName}
-                  onChange={(e) => setSelectedStaffName(e.target.value)}
-                  className="bg-slate-900/90 text-white text-xs font-bold rounded-xl px-3 py-1.5 border border-purple-400/40 focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer max-w-[220px]"
-                >
-                  <optgroup label="المهندسون والمتخصصون">
-                    {allStaff
-                      .filter((s) => s.role === 'مهندس')
-                      .map((s) => (
-                        <option key={s.id} value={s.canonicalName}>
-                          {s.canonicalName} ({s.weeklyClassesCount} حصة)
-                        </option>
-                      ))}
-                  </optgroup>
-                  <optgroup label="المعلمون والأخصائيون">
-                    {allStaff
-                      .filter((s) => s.role !== 'مهندس')
-                      .map((s) => (
-                        <option key={s.id} value={s.canonicalName}>
-                          {s.canonicalName} ({s.weeklyClassesCount} حصة / {s.weeklyDutiesCount} إشراف)
-                        </option>
-                      ))}
-                  </optgroup>
-                </select>
-              </div>
+              {/* Staff Switcher: Only visible to SuperAdmin & School Manager for governance and inspection */}
+              {(permissions?.isSuperAdmin || permissions?.isSchoolManager) && (
+                <div className="bg-white/15 backdrop-blur-md p-2 rounded-2xl border border-white/20">
+                  <label className="block text-[10px] text-purple-200 font-black mb-1">
+                    استعراض جدول أي زميل (28 معلم ومهندس):
+                  </label>
+                  <select
+                    value={selectedStaffName || matchedStaff.canonicalName}
+                    onChange={(e) => setSelectedStaffName(e.target.value)}
+                    className="bg-slate-900/90 text-white text-xs font-bold rounded-xl px-3 py-1.5 border border-purple-400/40 focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer max-w-[220px]"
+                  >
+                    <optgroup label="المهندسون والمتخصصون">
+                      {allStaff
+                        .filter((s) => s.role === 'مهندس')
+                        .map((s) => (
+                          <option key={s.id} value={s.canonicalName}>
+                            {s.canonicalName} ({s.weeklyClassesCount} حصة)
+                          </option>
+                        ))}
+                    </optgroup>
+                    <optgroup label="المعلمون والأخصائيون">
+                      {allStaff
+                        .filter((s) => s.role !== 'مهندس')
+                        .map((s) => (
+                          <option key={s.id} value={s.canonicalName}>
+                            {s.canonicalName} ({s.weeklyClassesCount} حصة / {s.weeklyDutiesCount} إشراف)
+                          </option>
+                        ))}
+                    </optgroup>
+                  </select>
+                </div>
+              )}
             </div>
           </div>
         </div>

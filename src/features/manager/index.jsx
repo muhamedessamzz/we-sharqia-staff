@@ -137,7 +137,7 @@ export default function ManagerView({ user }) {
 
       {/* Tab: Master Weekly Schedule & Supervision Cards */}
       {activeTab === 'schedule' && (
-        <MasterScheduleViewer />
+        <MasterScheduleViewer user={user} />
       )}
 
       {/* 5. Tab 2: Daily Staff Attendance Register (Strictly Read-Only) */}

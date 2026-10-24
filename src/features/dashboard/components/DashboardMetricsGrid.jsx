@@ -87,7 +87,7 @@ export default function DashboardMetricsGrid({ user, metrics, loading, onNavigat
         borderColor: 'border-blue-200/80',
         badge: 'جدول المعامل',
         badgeColor: 'bg-blue-100 text-blue-800',
-        targetTab: 'schedule',
+        targetTab: 'teacher',
       },
       {
         id: 'skills_evaluations',
@@ -161,7 +161,7 @@ export default function DashboardMetricsGrid({ user, metrics, loading, onNavigat
         borderColor: 'border-blue-200/80',
         badge: 'الجدول الأسبوعي',
         badgeColor: 'bg-blue-100 text-blue-800',
-        targetTab: 'schedule',
+        targetTab: 'teacher',
       },
       {
         id: 'exams_eval',

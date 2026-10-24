@@ -71,7 +71,18 @@ export const formatRoomLabel = (room) => {
     .replace(/قاعة\s+فصل\s+/gi, 'فصل ');
 };
 
-export default function MasterScheduleViewer() {
+export default function MasterScheduleViewer({ user }) {
+  const role = (user?.role || '').toLowerCase();
+  const isPlatformAdmin = role === 'admin' || user?.isSuperAdmin;
+  const isHR = role === 'hr';
+  const isSchoolManager = role === 'schoolmanager';
+
+  // Only SuperAdmin, HR, or School Manager can view the workload & staff quotas tab
+  const canViewWorkload = isPlatformAdmin || isHR || isSchoolManager;
+
+  // Only SuperAdmin or HR can edit or link staff accounts (ربط يدوي)
+  const canEditStaffLinks = isPlatformAdmin || isHR;
+
   const [activeTab, setActiveTab] = useState('grid'); // 'grid' | 'supervision' | 'workload'
   const [scheduleData, setScheduleData] = useState(fallbackSchedule);
   const [loading, setLoading] = useState(false);
@@ -284,17 +295,19 @@ export default function MasterScheduleViewer() {
               <span>كارتات الإشراف والاحتياطي ({filteredDuties.length})</span>
             </button>
 
-            <button
-              onClick={() => setActiveTab('workload')}
-              className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-2 ${
-                activeTab === 'workload'
-                  ? 'bg-[#5C2C90] text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Users size={15} />
-              <span>أنصبة العاملين والربط بالحسابات ({scheduleData?.staff?.length || 27})</span>
-            </button>
+            {canViewWorkload && (
+              <button
+                onClick={() => setActiveTab('workload')}
+                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-2 ${
+                  activeTab === 'workload'
+                    ? 'bg-[#5C2C90] text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Users size={15} />
+                <span>أنصبة العاملين والربط بالحسابات ({scheduleData?.staff?.length || 27})</span>
+              </button>
+            )}
           </div>
 
           {/* Print Button */}
@@ -538,7 +551,7 @@ export default function MasterScheduleViewer() {
       )}
 
       {/* Tab 3: Staff Workloads & Account Linker */}
-      {activeTab === 'workload' && (
+      {activeTab === 'workload' && canViewWorkload && (
         <div className="space-y-4">
           <div className="bg-purple-50/70 rounded-3xl p-5 border border-purple-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="space-y-1">
@@ -613,18 +626,25 @@ export default function MasterScheduleViewer() {
                           )}
                         </td>
                         <td className="py-3.5 px-4 text-center">
-                          <button
-                            onClick={() => {
-                              setLinkingStaff(s);
-                              setLinkEmail(s.matchedUserEmail || '');
-                              setLinkUserId(s.userAccountId || '');
-                              setLinkFeedback(null);
-                            }}
-                            className="text-xs font-bold text-[#5C2C90] hover:text-purple-800 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-xl border border-purple-200 transition-all cursor-pointer inline-flex items-center gap-1"
-                          >
-                            <LinkIcon size={12} />
-                            <span>{isLinked ? 'تعديل الربط' : 'ربط يدوي'}</span>
-                          </button>
+                          {canEditStaffLinks ? (
+                            <button
+                              onClick={() => {
+                                setLinkingStaff(s);
+                                setLinkEmail(s.matchedUserEmail || '');
+                                setLinkUserId(s.userAccountId || '');
+                                setLinkFeedback(null);
+                              }}
+                              className="text-xs font-bold text-[#5C2C90] hover:text-purple-800 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-xl border border-purple-200 transition-all cursor-pointer inline-flex items-center gap-1"
+                            >
+                              <LinkIcon size={12} />
+                              <span>{isLinked ? 'تعديل الربط' : 'ربط يدوي'}</span>
+                            </button>
+                          ) : (
+                            <span className="text-[11px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-lg border border-slate-200 inline-flex items-center gap-1">
+                              <Shield size={11} />
+                              <span>اختصاص HR والمسؤول</span>
+                            </span>
+                          )}
                         </td>
                       </tr>
                     );
@@ -637,7 +657,7 @@ export default function MasterScheduleViewer() {
       )}
 
       {/* Manual Link Modal */}
-      {linkingStaff && (
+      {linkingStaff && canEditStaffLinks && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">

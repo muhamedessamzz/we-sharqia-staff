@@ -178,6 +178,7 @@ export default function App() {
     const isPlatformAdmin = r === 'admin' || currentUser?.isSuperAdmin;
     const isSchoolManager = r === 'schoolmanager';
     const isSchoolLeadership = isPlatformAdmin || isSchoolManager;
+    const isHR = r === 'hr';
 
     const currentTab = activeTab || 'dashboard';
 
@@ -193,7 +194,7 @@ export default function App() {
         title: 'إدارة المدرسة',
         icon: Briefcase,
       },
-      {
+      (isPlatformAdmin || isSchoolManager || isHR) && {
         id: 'schedule',
         title: 'الجدول المدرسي والإشراف',
         icon: Calendar,
@@ -245,7 +246,15 @@ export default function App() {
       },
     ].filter(Boolean);
 
-    const currentItem = navigationItems.find(item => item.id === currentTab) || navigationItems[0];
+    // Resolve current tab: if user accesses an unauthorized tab (e.g. engineer going to #schedule), redirect to their primary tab
+    const allowedTabIds = navigationItems.map(item => item.id);
+    const resolvedTab = allowedTabIds.includes(currentTab)
+      ? currentTab
+      : (allowedTabIds.includes('teacher') && (r === 'teacher' || r === 'technicalengineer')
+          ? 'teacher'
+          : (allowedTabIds[0] || 'dashboard'));
+
+    const currentItem = navigationItems.find(item => item.id === resolvedTab) || navigationItems[0];
 
     return (
       <div className="min-h-screen bg-[#F8F5FC] text-[#26163A]">
@@ -364,18 +373,18 @@ export default function App() {
 
           {/* Dashboard Active View */}
           <main className="flex-1 py-5 w-full">
-            {currentTab === 'dashboard' && <DashboardView user={currentUser} onNavigateTab={navigateToTab} />}
-            {currentTab === 'manager' && <ManagerView user={currentUser} />}
-            {currentTab === 'schedule' && <MasterScheduleViewer />}
-            {currentTab === 'teacher' && <TeacherView user={currentUser} />}
-            {currentTab === 'sports' && <SportsView user={currentUser} />}
-            {currentTab === 'affairs' && <StudentAffairsView user={currentUser} />}
-            {currentTab === 'assessment' && <AssessmentView user={currentUser} />}
-            {currentTab === 'hr' && <HrView user={currentUser} />}
-            {currentTab === 'social' && <SocialWorkerView user={currentUser} />}
-            {currentTab === 'quality' && <QualityView user={currentUser} />}
-            {currentTab === 'admin' && <AdminView user={currentUser} />}
-            {currentTab === 'notifications' && <NotificationsView user={currentUser} />}
+            {resolvedTab === 'dashboard' && <DashboardView user={currentUser} onNavigateTab={navigateToTab} />}
+            {resolvedTab === 'manager' && <ManagerView user={currentUser} />}
+            {resolvedTab === 'schedule' && <MasterScheduleViewer user={currentUser} />}
+            {resolvedTab === 'teacher' && <TeacherView user={currentUser} />}
+            {resolvedTab === 'sports' && <SportsView user={currentUser} />}
+            {resolvedTab === 'affairs' && <StudentAffairsView user={currentUser} />}
+            {resolvedTab === 'assessment' && <AssessmentView user={currentUser} />}
+            {resolvedTab === 'hr' && <HrView user={currentUser} />}
+            {resolvedTab === 'social' && <SocialWorkerView user={currentUser} />}
+            {resolvedTab === 'quality' && <QualityView user={currentUser} />}
+            {resolvedTab === 'admin' && <AdminView user={currentUser} />}
+            {resolvedTab === 'notifications' && <NotificationsView user={currentUser} />}
           </main>
 
           <Footer />
