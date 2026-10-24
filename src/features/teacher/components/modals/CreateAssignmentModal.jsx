@@ -332,6 +332,7 @@ export default function CreateAssignmentModal({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

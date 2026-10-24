@@ -748,6 +748,7 @@ export default function CreateQuizModal({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

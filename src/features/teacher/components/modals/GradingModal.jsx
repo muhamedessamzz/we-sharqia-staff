@@ -277,6 +277,7 @@ export default function GradingModal({ submission, onClose, onSaveGrade }) {
           title={`تسليم الطالب: ${submission.studentName}`}
         />
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
