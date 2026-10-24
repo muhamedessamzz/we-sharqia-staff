@@ -14,13 +14,14 @@ import AssignmentsTab from './components/tabs/AssignmentsTab';
 import GradingTab from './components/tabs/GradingTab';
 import AnnouncementsTab from './components/tabs/AnnouncementsTab';
 import GradebookTab from './components/tabs/GradebookTab';
+import CreateQuizModal from './components/modals/CreateQuizModal';
 import CreateAssignmentModal from './components/modals/CreateAssignmentModal';
 import GradingModal from './components/modals/GradingModal';
 
 export default function TeacherView({ user }) {
   const [activeTab, setActiveTab] = useState('live');
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [createType, setCreateType] = useState('quiz');
+  const [isQuizModalOpen, setIsQuizModalOpen] = useState(false);
+  const [isAssignmentModalOpen, setIsAssignmentModalOpen] = useState(false);
   const [gradingSubmission, setGradingSubmission] = useState(null);
 
   const permissions = useTeacherPermissions(user);
@@ -48,8 +49,11 @@ export default function TeacherView({ user }) {
   });
 
   const handleOpenCreateModal = (type) => {
-    setCreateType(type);
-    setIsCreateModalOpen(true);
+    if (type === 'quiz') {
+      setIsQuizModalOpen(true);
+    } else {
+      setIsAssignmentModalOpen(true);
+    }
   };
 
   const handlePublishAssignment = async (payload, targetClassroom, type) => {
@@ -223,11 +227,16 @@ export default function TeacherView({ user }) {
       )}
 
       {/* Modals */}
+      <CreateQuizModal
+        isOpen={isQuizModalOpen}
+        onClose={() => setIsQuizModalOpen(false)}
+        permissions={permissions}
+        onPublish={handlePublishAssignment}
+      />
+
       <CreateAssignmentModal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        createType={createType}
-        setCreateType={setCreateType}
+        isOpen={isAssignmentModalOpen}
+        onClose={() => setIsAssignmentModalOpen(false)}
         permissions={permissions}
         onPublish={handlePublishAssignment}
       />

@@ -1,5 +1,5 @@
 import React from 'react';
-import { PlusCircle, Eye, PenTool, Trash2 } from 'lucide-react';
+import { PlusCircle, Eye, PenTool, Trash2, Zap, BookOpen } from 'lucide-react';
 
 export default function AssignmentsTab({
   assignments,
@@ -61,10 +61,18 @@ export default function AssignmentsTab({
           <div className="flex items-center gap-2">
             <button
               onClick={() => onOpenCreateModal('quiz')}
-              className="bg-[#5C2C90] hover:bg-[#4a2175] text-white text-xs font-bold px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+              className="bg-gradient-to-r from-[#5C2C90] to-[#E4007C] hover:opacity-95 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
             >
-              <PlusCircle size={15} />
-              <span>إنشاء اختبار أو تكليف جديد</span>
+              <Zap size={14} />
+              <span>+ اختبار قصير</span>
+            </button>
+
+            <button
+              onClick={() => onOpenCreateModal('assignment')}
+              className="bg-purple-50 hover:bg-purple-100 text-[#5C2C90] border border-purple-200 text-xs font-bold px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <BookOpen size={14} />
+              <span>+ إضافة واجب</span>
             </button>
           </div>
         ) : (
