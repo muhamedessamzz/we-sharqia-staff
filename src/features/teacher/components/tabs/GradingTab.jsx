@@ -1,71 +1,146 @@
 import React from 'react';
-import { Search, CheckCircle, Clock, PenTool, Zap, BookOpen, Calendar, Timer } from 'lucide-react';
+import { Search, CheckCircle, Clock, PenTool, Zap, BookOpen, Calendar, Timer, Filter } from 'lucide-react';
 import { formatDateTimeArabic, calculateDurationArabic } from '../../../../utils/dateUtils';
 
 export default function GradingTab({
   assignments,
   filters,
+  permissions = {},
   onOpenGradingModal
 }) {
   const {
+    filterClass,
+    setFilterClass,
     searchQuery,
     setSearchQuery,
     gradingAssignmentFilter,
     setGradingAssignmentFilter,
     gradingStatusFilter,
     setGradingStatusFilter,
-    filteredSubmissions
+    filteredSubmissions,
+    submissionsList = []
   } = filters;
+  const { isRestricted, assignedClasses = [] } = permissions;
 
   return (
     <div className="space-y-5 fade-in">
       {/* Submissions Filter Toolbar */}
-      <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
-        <div className="relative w-full md:w-72">
-          <input
-            type="text"
-            placeholder="بحث باسم الطالب أو التكليف..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl pr-10 pl-3 py-2 text-xs focus:outline-none focus:border-[#5C2C90]"
-          />
-          <Search size={15} className="absolute right-3.5 top-2.5 text-slate-400" />
+      <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-200/80 shadow-xs space-y-3">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-3">
+          <div className="relative w-full md:w-64">
+            <input
+              type="text"
+              placeholder="بحث باسم الطالب أو التكليف..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl pr-10 pl-3 py-2 text-xs focus:outline-none focus:border-[#5C2C90]"
+            />
+            <Search size={15} className="absolute right-3.5 top-2.5 text-slate-400" />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 text-xs w-full md:w-auto justify-end">
+            {/* Classroom Filter */}
+            <div className="flex items-center gap-1.5">
+              <span className="font-bold text-slate-600">الفصل:</span>
+              <select
+                value={filterClass}
+                onChange={(e) => setFilterClass(e.target.value)}
+                className="bg-slate-50 border border-slate-200 text-[#5C2C90] font-bold rounded-xl px-2.5 py-1.5 text-xs focus:outline-none cursor-pointer"
+              >
+                {isRestricted ? (
+                  <>
+                    <option value="all">كل فصولك ({assignedClasses.join(', ')})</option>
+                    {assignedClasses.map((cls) => (
+                      <option key={cls} value={cls}>فصل {cls}</option>
+                    ))}
+                  </>
+                ) : (
+                  <>
+                    <option value="all">كل الفصول</option>
+                    {['A1', 'A2', 'A3', 'A4', 'B1', 'B2', 'B3', 'C1', 'C2'].map((cls) => (
+                      <option key={cls} value={cls}>فصل {cls}</option>
+                    ))}
+                  </>
+                )}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="font-bold text-slate-600">المهمة:</span>
+              <select
+                value={gradingAssignmentFilter}
+                onChange={(e) => setGradingAssignmentFilter(e.target.value)}
+                className="bg-slate-50 border border-slate-200 text-slate-800 font-bold rounded-xl px-2.5 py-1.5 text-xs focus:outline-none cursor-pointer max-w-[180px] truncate"
+              >
+                <option value="all">جميع التكليفات والاختبارات</option>
+                {assignments.map(a => (
+                  <option key={a.id} value={a.id}>
+                    {a.assignmentType === 'quiz' ? '⚡ ' : '📝 '}
+                    {a.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="font-bold text-slate-600">الحالة:</span>
+              <select
+                value={gradingStatusFilter}
+                onChange={(e) => setGradingStatusFilter(e.target.value)}
+                className="bg-slate-50 border border-slate-200 text-slate-800 font-bold rounded-xl px-2.5 py-1.5 text-xs focus:outline-none cursor-pointer"
+              >
+                <option value="all">كل الحالات</option>
+                <option value="pending">🟡 في انتظار التصحيح</option>
+                <option value="graded">🟢 تم الرصد والاعتماد</option>
+              </select>
+            </div>
+
+            <div className="font-mono font-bold bg-purple-50 text-[#5C2C90] border border-purple-100 px-2.5 py-1 rounded-xl text-xs">
+              {filteredSubmissions.length} تسليمات
+            </div>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 text-xs w-full md:w-auto justify-end">
-          <div className="flex items-center gap-1.5">
-            <span className="font-bold text-slate-600">المهمة:</span>
-            <select
-              value={gradingAssignmentFilter}
-              onChange={(e) => setGradingAssignmentFilter(e.target.value)}
-              className="bg-slate-50 border border-slate-200 text-slate-800 font-bold rounded-xl px-2.5 py-1.5 text-xs focus:outline-none"
-            >
-              <option value="all">جميع التكليفات والاختبارات</option>
-              {assignments.map(a => (
-                <option key={a.id} value={a.id}>
-                  {a.assignmentType === 'quiz' ? '⚡ ' : '📝 '}
-                  {a.title}
-                </option>
-              ))}
-            </select>
-          </div>
+        {/* Quick Classroom Pills in Grading Tab */}
+        <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100">
+          <span className="text-xs font-bold text-slate-500 flex items-center gap-1 ml-1">
+            <Filter size={12} className="text-[#5C2C90]" />
+            <span>تصفية الفصل للتصحيح:</span>
+          </span>
 
-          <div className="flex items-center gap-1.5">
-            <span className="font-bold text-slate-600">الحالة:</span>
-            <select
-              value={gradingStatusFilter}
-              onChange={(e) => setGradingStatusFilter(e.target.value)}
-              className="bg-slate-50 border border-slate-200 text-slate-800 font-bold rounded-xl px-2.5 py-1.5 text-xs focus:outline-none"
-            >
-              <option value="all">كل الحالات</option>
-              <option value="pending">🟡 في انتظار التصحيح</option>
-              <option value="graded">🟢 تم الرصد والاعتماد</option>
-            </select>
-          </div>
+          <button
+            onClick={() => setFilterClass('all')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              filterClass === 'all'
+                ? 'bg-[#5C2C90] text-white shadow-xs'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            {isRestricted ? `كل فصولك (${submissionsList.length})` : `كافة الفصول (${submissionsList.length})`}
+          </button>
 
-          <div className="font-mono font-bold bg-purple-50 text-[#5C2C90] border border-purple-100 px-2.5 py-1 rounded-xl text-xs">
-            {filteredSubmissions.length} تسليمات
-          </div>
+          {(isRestricted ? assignedClasses : ['A1', 'A2', 'A3', 'A4', 'B1', 'B2', 'B3', 'C1', 'C2']).map((cls) => {
+            const count = submissionsList.filter(s => s.classroom?.toUpperCase() === cls.toUpperCase()).length;
+            const pendingCount = submissionsList.filter(s => s.classroom?.toUpperCase() === cls.toUpperCase() && !s.isGraded).length;
+            return (
+              <button
+                key={cls}
+                onClick={() => setFilterClass(cls)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                  filterClass === cls
+                    ? 'bg-gradient-to-r from-[#5C2C90] to-[#E4007C] text-white shadow-xs'
+                    : 'bg-purple-50 text-purple-900 border border-purple-200 hover:bg-purple-100'
+                }`}
+              >
+                <span>فصل {cls}</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                  filterClass === cls ? 'bg-white/25 text-white' : 'bg-purple-200/60 text-[#5C2C90]'
+                }`}>
+                  {count} {pendingCount > 0 ? `(${pendingCount} معلق)` : ''}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 

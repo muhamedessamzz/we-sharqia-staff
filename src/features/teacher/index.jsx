@@ -201,6 +201,7 @@ export default function TeacherView({ user }) {
         <GradingTab
           assignments={assignments}
           filters={filters}
+          permissions={permissions}
           onOpenGradingModal={setGradingSubmission}
         />
       )}
@@ -222,6 +223,7 @@ export default function TeacherView({ user }) {
           liveStudents={liveStudents}
           assignments={assignments}
           filterClass={filters.filterClass}
+          setFilterClass={filters.setFilterClass}
           permissions={permissions}
         />
       )}

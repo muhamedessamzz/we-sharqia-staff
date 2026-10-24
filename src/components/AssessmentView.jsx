@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Award, CheckCircle2, TrendingUp, Search, Filter, 
   Printer, Star, CheckSquare, Edit3, Send, Plus, 
   BookOpen, Clock, AlertTriangle, FileText, ChevronLeft,
-  X, Check, Sparkles, UserCheck, Eye, RefreshCw
+  X, Check, Sparkles, UserCheck, Eye, RefreshCw, Users
 } from 'lucide-react';
 import { api } from '../api/client';
 import StaffProfileModal from '../features/admin/components/StaffProfileModal';
@@ -15,6 +15,8 @@ const GRADE_NAMES = {
   3: 'الصف الثالث',
 };
 
+const ALL_SCHOOL_CLASSROOMS = ['A1', 'A2', 'A3', 'A4', 'B1', 'B2', 'B3', 'C1', 'C2'];
+
 export default function AssessmentView({ user }) {
   const [activeTab, setActiveTab] = useState('formative'); // 'formative' | 'remedial' | 'staff_dossiers' | 'printable'
   const [overview, setOverview] = useState(null);
@@ -24,10 +26,34 @@ export default function AssessmentView({ user }) {
   const [selectedProfileStaff, setSelectedProfileStaff] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Classroom Resolution for Teacher / Technical Engineer
+  const userRole = user?.role?.toLowerCase() || '';
+  const isSuperAdmin = Boolean(user?.isSuperAdmin || userRole === 'admin');
+  const isTeachingStaff = ['teacher', 'technicalengineer'].includes(userRole) && !isSuperAdmin;
+
+  const assignedClasses = useMemo(() => {
+    if (!isTeachingStaff) return [];
+    if (Array.isArray(user?.assignedClassrooms) && user.assignedClassrooms.length > 0) {
+      return user.assignedClassrooms.map(c => c.trim().toUpperCase()).filter(Boolean);
+    }
+    if (user?.classroom) {
+      return user.classroom.split(',').map(c => c.trim().toUpperCase()).filter(Boolean);
+    }
+    return [];
+  }, [user, isTeachingStaff]);
+
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [classFilter, setClassFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
+
+  // Scoring Sheet Classroom Filter & Search
+  const [scoringClassFilter, setScoringClassFilter] = useState('all');
+  const [scoringSearchQuery, setScoringSearchQuery] = useState('');
+
+  // Remedial Classroom Filter & Search
+  const [remedialClassFilter, setRemedialClassFilter] = useState('all');
+  const [remedialSearchQuery, setRemedialSearchQuery] = useState('');
 
   // Modals
   const [isCreateExamOpen, setIsCreateExamOpen] = useState(false);
@@ -89,6 +115,14 @@ export default function AssessmentView({ user }) {
 
   const handleOpenScoringModal = async (exam) => {
     setSelectedExamForScoring(exam);
+    if (exam.classroom && exam.classroom !== 'all') {
+      setScoringClassFilter(exam.classroom);
+    } else if (assignedClasses.length > 0) {
+      setScoringClassFilter(assignedClasses[0]);
+    } else {
+      setScoringClassFilter('all');
+    }
+    setScoringSearchQuery('');
     setLoadingScores(true);
     try {
       const scores = await api.getExamScores(exam.id);
@@ -125,6 +159,34 @@ export default function AssessmentView({ user }) {
       await loadAllAssessmentData();
     } catch (err) {
       alert('فشل حفظ الدرجة: ' + err.message);
+    }
+  };
+
+  const handleSaveAllFilteredScores = async () => {
+    if (!selectedExamForScoring || filteredExamScores.length === 0) return;
+    setSubmitting(true);
+    try {
+      let savedCount = 0;
+      for (const studentScore of filteredExamScores) {
+        const inputVal = scoringInputs[studentScore.studentId];
+        if (inputVal !== undefined && inputVal !== '' && !isNaN(inputVal)) {
+          await api.saveExamScore(selectedExamForScoring.id, {
+            studentId: studentScore.studentId,
+            score: Number(inputVal),
+            isRemedial: selectedExamForScoring.examType === 'تحسيني',
+            teacherNotes: studentScore.teacherNotes
+          });
+          savedCount++;
+        }
+      }
+      alert(`تم اعتماد وحفظ درجات ${savedCount} طالباً بنجاح ✅`);
+      const updatedScores = await api.getExamScores(selectedExamForScoring.id);
+      setExamScores(updatedScores || []);
+      await loadAllAssessmentData();
+    } catch (err) {
+      alert('خطأ أثناء حفظ الدرجات: ' + err.message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -182,23 +244,73 @@ export default function AssessmentView({ user }) {
     }
   };
 
-  // Filtered lists
-  const filteredExams = exams.filter(e => {
-    const matchType = typeFilter === 'all' || e.examType === typeFilter;
-    const matchClass = classFilter === 'all' || e.classroom === classFilter || e.classroom === 'all';
-    const matchSearch = !searchQuery.trim() || 
-      (e.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (e.subject || '').toLowerCase().includes(searchQuery.toLowerCase());
-    return matchType && matchClass && matchSearch;
-  });
+  // Available classrooms in currently loaded examScores
+  const scoringAvailableClasses = useMemo(() => {
+    const set = new Set();
+    examScores.forEach(s => {
+      if (s.classroom) set.add(s.classroom.toUpperCase());
+    });
+    return Array.from(set).sort();
+  }, [examScores]);
 
-  const filteredRemedial = remedialStudents.filter(s => {
-    const matchClass = classFilter === 'all' || s.classroom === classFilter;
-    const matchSearch = !searchQuery.trim() || 
-      (s.studentName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (s.studentCode || '').toLowerCase().includes(searchQuery.toLowerCase());
-    return matchClass && matchSearch;
-  });
+  // Filtered exam scores by classroom and search for scoring modal
+  const filteredExamScores = useMemo(() => {
+    return examScores.filter(s => {
+      if (scoringClassFilter !== 'all' && s.classroom?.toUpperCase() !== scoringClassFilter.toUpperCase()) {
+        return false;
+      }
+      if (scoringSearchQuery.trim()) {
+        const q = scoringSearchQuery.toLowerCase().trim();
+        const matchName = (s.studentName || '').toLowerCase().includes(q);
+        const matchCode = (s.studentCode || '').toLowerCase().includes(q);
+        return matchName || matchCode;
+      }
+      return true;
+    });
+  }, [examScores, scoringClassFilter, scoringSearchQuery]);
+
+  // Classroom statistics in scoring modal
+  const scoringClassStats = useMemo(() => {
+    const total = filteredExamScores.length;
+    let graded = 0;
+    let passed = 0;
+    let totalScore = 0;
+    filteredExamScores.forEach(s => {
+      const val = scoringInputs[s.studentId] ?? s.score;
+      if (val !== undefined && val !== null && !isNaN(val) && Number(val) > 0) {
+        graded += 1;
+        totalScore += Number(val);
+        if (Number(val) >= (selectedExamForScoring?.passingScore ?? 50)) {
+          passed += 1;
+        }
+      }
+    });
+    const avg = graded > 0 ? (totalScore / graded).toFixed(1) : '—';
+    const passRate = graded > 0 ? `${Math.round((passed / graded) * 100)}%` : '—';
+    return { total, graded, passed, avg, passRate };
+  }, [filteredExamScores, scoringInputs, selectedExamForScoring]);
+
+  // Filtered lists for main tabs
+  const filteredExams = useMemo(() => {
+    return exams.filter(e => {
+      const matchType = typeFilter === 'all' || e.examType === typeFilter;
+      const matchClass = classFilter === 'all' || e.classroom === classFilter || e.classroom === 'all';
+      const matchSearch = !searchQuery.trim() || 
+        (e.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (e.subject || '').toLowerCase().includes(searchQuery.toLowerCase());
+      return matchType && matchClass && matchSearch;
+    });
+  }, [exams, typeFilter, classFilter, searchQuery]);
+
+  const filteredRemedial = useMemo(() => {
+    return remedialStudents.filter(s => {
+      const matchClass = remedialClassFilter === 'all' || s.classroom?.toUpperCase() === remedialClassFilter.toUpperCase();
+      const matchSearch = !remedialSearchQuery.trim() || 
+        (s.studentName || '').toLowerCase().includes(remedialSearchQuery.toLowerCase()) ||
+        (s.studentCode || '').toLowerCase().includes(remedialSearchQuery.toLowerCase());
+      return matchClass && matchSearch;
+    });
+  }, [remedialStudents, remedialClassFilter, remedialSearchQuery]);
 
   return (
     <div className="space-y-6 pb-12" dir="rtl">
@@ -334,42 +446,109 @@ export default function AssessmentView({ user }) {
       {activeTab === 'formative' && (
         <div className="space-y-5">
           {/* Filters Bar */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
-            <div className="relative flex-1 max-w-xs">
-              <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="بحث باسم الامتحان أو المادة..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl pr-9 pl-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#5C2C90]"
-              />
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="relative flex-1 max-w-xs">
+                <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="بحث باسم الامتحان أو المادة..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pr-9 pl-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#5C2C90]"
+                />
+              </div>
+
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <select
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
+                  className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none"
+                >
+                  <option value="all">كافة أنواع الامتحانات</option>
+                  <option value="تكويني نظري">تكويني نظري</option>
+                  <option value="تكويني عملي">تكويني عملي (معملي)</option>
+                  <option value="تحسيني">امتحان تحسيني</option>
+                </select>
+
+                <select
+                  value={classFilter}
+                  onChange={(e) => setClassFilter(e.target.value)}
+                  className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none"
+                >
+                  <option value="all">كافة الفصول ({exams.length})</option>
+                  {ALL_SCHOOL_CLASSROOMS.map((cls) => (
+                    <option key={cls} value={cls}>
+                      فصل {cls} {assignedClasses.includes(cls) ? '★ (مسند لك)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <select
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value)}
-                className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none"
-              >
-                <option value="all">كافة أنواع الامتحانات</option>
-                <option value="تكويني نظري">تكويني نظري</option>
-                <option value="تكويني عملي">تكويني عملي (معملي)</option>
-              </select>
+            {/* Quick Classroom Filter Pills */}
+            <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100">
+              <span className="text-xs font-bold text-slate-500 flex items-center gap-1 ml-1">
+                <Filter size={12} className="text-[#5C2C90]" />
+                <span>تصفية الفصل:</span>
+              </span>
 
-              <select
-                value={classFilter}
-                onChange={(e) => setClassFilter(e.target.value)}
-                className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none"
+              <button
+                onClick={() => setClassFilter('all')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  classFilter === 'all'
+                    ? 'bg-[#5C2C90] text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
               >
-                <option value="all">كافة الفصول</option>
-                <option value="A1">فصل A1</option>
-                <option value="A2">فصل A2</option>
-                <option value="B1">فصل B1</option>
-                <option value="B2">فصل B2</option>
-                <option value="C1">فصل C1</option>
-                <option value="C2">فصل C2</option>
-              </select>
+                كافة الفصول ({exams.length})
+              </button>
+
+              {assignedClasses.length > 0 && (
+                <>
+                  <div className="h-4 w-px bg-slate-300 mx-1 hidden sm:block" />
+                  <span className="text-[10px] font-bold text-purple-700 hidden sm:inline">فصولك:</span>
+                  {assignedClasses.map((cls) => {
+                    const count = exams.filter(e => e.classroom === cls || e.classroom === 'all').length;
+                    return (
+                      <button
+                        key={cls}
+                        onClick={() => setClassFilter(cls)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                          classFilter === cls
+                            ? 'bg-gradient-to-r from-[#5C2C90] to-[#E4007C] text-white shadow-xs'
+                            : 'bg-purple-50 text-purple-900 border border-purple-200 hover:bg-purple-100'
+                        }`}
+                      >
+                        <span>فصل {cls}</span>
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                          classFilter === cls ? 'bg-white/25 text-white' : 'bg-purple-200/60 text-[#5C2C90]'
+                        }`}>
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </>
+              )}
+
+              <div className="h-4 w-px bg-slate-300 mx-1 hidden sm:block" />
+              {ALL_SCHOOL_CLASSROOMS.filter(c => !assignedClasses.includes(c)).map((cls) => {
+                const count = exams.filter(e => e.classroom === cls || e.classroom === 'all').length;
+                return (
+                  <button
+                    key={cls}
+                    onClick={() => setClassFilter(cls)}
+                    className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      classFilter === cls
+                        ? 'bg-[#5C2C90] text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    }`}
+                  >
+                    فصل {cls} ({count})
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -456,6 +635,105 @@ export default function AssessmentView({ user }) {
               <p className="text-xs text-amber-800 leading-relaxed max-w-3xl">
                 يتم هنا حصر الطلاب الذين لم يجتازوا الحد الأدنى في الاختبار التكويني الأول أو تقدموا بطلب تحسين درجات. يمكنك رصد الدرجة الجديدة وتحديث حالة الطالب فوراً.
               </p>
+            </div>
+          </div>
+
+          {/* Remedial Classroom Filter Toolbar */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="relative flex-1 max-w-xs">
+                <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="بحث باسم الطالب أو الكود..."
+                  value={remedialSearchQuery}
+                  onChange={(e) => setRemedialSearchQuery(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pr-9 pl-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-500">الفصل:</span>
+                <select
+                  value={remedialClassFilter}
+                  onChange={(e) => setRemedialClassFilter(e.target.value)}
+                  className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-none"
+                >
+                  <option value="all">كافة الفصول ({remedialStudents.length})</option>
+                  {ALL_SCHOOL_CLASSROOMS.map((cls) => (
+                    <option key={cls} value={cls}>
+                      فصل {cls} {assignedClasses.includes(cls) ? '★ (مسند لك)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Quick Classroom Pills for Remedial */}
+            <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100">
+              <span className="text-xs font-bold text-slate-500 flex items-center gap-1 ml-1">
+                <Filter size={12} className="text-amber-600" />
+                <span>تصفية الفصل:</span>
+              </span>
+
+              <button
+                onClick={() => setRemedialClassFilter('all')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  remedialClassFilter === 'all'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                كافة الفصول ({remedialStudents.length})
+              </button>
+
+              {assignedClasses.length > 0 && (
+                <>
+                  <div className="h-4 w-px bg-slate-300 mx-1 hidden sm:block" />
+                  <span className="text-[10px] font-bold text-amber-700 hidden sm:inline">فصولك:</span>
+                  {assignedClasses.map((cls) => {
+                    const count = remedialStudents.filter(s => s.classroom?.toUpperCase() === cls).length;
+                    return (
+                      <button
+                        key={cls}
+                        onClick={() => setRemedialClassFilter(cls)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                          remedialClassFilter === cls
+                            ? 'bg-gradient-to-r from-amber-600 to-rose-600 text-white shadow-xs'
+                            : 'bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100'
+                        }`}
+                      >
+                        <span>فصل {cls}</span>
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                          remedialClassFilter === cls ? 'bg-white/25 text-white' : 'bg-amber-200/60 text-amber-900'
+                        }`}>
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </>
+              )}
+
+              <div className="h-4 w-px bg-slate-300 mx-1 hidden sm:block" />
+              {ALL_SCHOOL_CLASSROOMS.filter(c => !assignedClasses.includes(c)).map((cls) => {
+                const count = remedialStudents.filter(s => s.classroom?.toUpperCase() === cls).length;
+                return (
+                  <button
+                    key={cls}
+                    onClick={() => setRemedialClassFilter(cls)}
+                    className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      remedialClassFilter === cls
+                        ? 'bg-amber-600 text-white shadow-xs'
+                        : count > 0
+                        ? 'bg-amber-50/70 text-amber-800 hover:bg-amber-100 border border-amber-200/60'
+                        : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                    }`}
+                  >
+                    فصل {cls} ({count})
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -614,13 +892,12 @@ export default function AssessmentView({ user }) {
                     onChange={(e) => setCreateExamForm({ ...createExamForm, classroom: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-bold focus:outline-none focus:ring-2 focus:ring-[#5C2C90]"
                   >
-                    <option value="all">كافة الفصول</option>
-                    <option value="A1">فصل A1</option>
-                    <option value="A2">فصل A2</option>
-                    <option value="B1">فصل B1</option>
-                    <option value="B2">فصل B2</option>
-                    <option value="C1">فصل C1</option>
-                    <option value="C2">فصل C2</option>
+                    <option value="all">كافة الفصول ({ALL_SCHOOL_CLASSROOMS.join(', ')})</option>
+                    {ALL_SCHOOL_CLASSROOMS.map((cls) => (
+                      <option key={cls} value={cls}>
+                        فصل {cls} {assignedClasses.includes(cls) ? '★ (مسند لك)' : ''}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -694,7 +971,8 @@ export default function AssessmentView({ user }) {
       {/* MODAL: Exam Scoring Sheet (رصد الدرجات) */}
       {selectedExamForScoring && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-4xl w-full border border-slate-200 shadow-2xl space-y-5 text-right my-auto max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-5xl w-full border border-slate-200 shadow-2xl space-y-5 text-right my-auto max-h-[92vh] overflow-y-auto">
+            {/* Header */}
             <div className="flex items-center justify-between pb-4 border-b border-slate-200">
               <div>
                 <span className="text-[11px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">
@@ -707,16 +985,112 @@ export default function AssessmentView({ user }) {
               </div>
               <button
                 onClick={() => setSelectedExamForScoring(null)}
-                className="text-slate-400 hover:text-slate-700 p-1 rounded-xl"
+                className="text-slate-400 hover:text-slate-700 p-1 rounded-xl cursor-pointer"
               >
                 <X size={20} />
               </button>
+            </div>
+
+            {/* CLASSROOM FILTER TOOLBAR IN SCORING SHEET */}
+            <div className="bg-purple-50/60 p-4 rounded-2xl border border-purple-100 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                {/* Search */}
+                <div className="relative flex-1 max-w-xs">
+                  <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="بحث باسم الطالب أو الكود بالكشف..."
+                    value={scoringSearchQuery}
+                    onChange={(e) => setScoringSearchQuery(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl pr-9 pl-3 py-1.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#5C2C90]"
+                  />
+                </div>
+
+                {/* Batch Save Action */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleSaveAllFilteredScores}
+                    disabled={submitting || filteredExamScores.length === 0}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-xs disabled:opacity-50"
+                  >
+                    <CheckCircle2 size={14} />
+                    <span>اعتماد درجات {scoringClassFilter === 'all' ? 'الكل' : `فصل ${scoringClassFilter}`} دفعة واحدة</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Classroom Filter Pills */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-purple-100/80">
+                <span className="text-xs font-bold text-slate-600 flex items-center gap-1">
+                  <Filter size={12} className="text-[#5C2C90]" />
+                  <span>تصفية الفصل بالكشف:</span>
+                </span>
+
+                <button
+                  onClick={() => setScoringClassFilter('all')}
+                  className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    scoringClassFilter === 'all'
+                      ? 'bg-[#5C2C90] text-white shadow-xs'
+                      : 'bg-white text-slate-700 hover:bg-purple-100 border border-slate-200'
+                  }`}
+                >
+                  كافة فصول الامتحان ({examScores.length})
+                </button>
+
+                {scoringAvailableClasses.map((cls) => {
+                  const count = examScores.filter(s => s.classroom?.toUpperCase() === cls).length;
+                  const isAssigned = assignedClasses.includes(cls);
+                  return (
+                    <button
+                      key={cls}
+                      onClick={() => setScoringClassFilter(cls)}
+                      className={`px-3 py-1 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                        scoringClassFilter === cls
+                          ? 'bg-gradient-to-r from-[#5C2C90] to-[#E4007C] text-white shadow-xs'
+                          : isAssigned
+                          ? 'bg-white text-purple-900 border-2 border-purple-400 hover:bg-purple-100'
+                          : 'bg-white text-slate-700 border border-slate-200 hover:bg-purple-50'
+                      }`}
+                    >
+                      <span>فصل {cls}</span>
+                      {isAssigned && <span className="text-[10px]" title="فصل مسند لك">★</span>}
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                        scoringClassFilter === cls ? 'bg-white/25 text-white' : 'bg-purple-100 text-[#5C2C90]'
+                      }`}>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Classroom Stats Banner */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-purple-100/60 text-center text-xs">
+                <div className="bg-white/80 p-2 rounded-xl border border-purple-100">
+                  <span className="text-[10px] text-slate-400 block font-bold">إجمالي طلاب الفصل</span>
+                  <strong className="text-slate-800 text-sm font-black">{scoringClassStats.total}</strong>
+                </div>
+                <div className="bg-white/80 p-2 rounded-xl border border-purple-100">
+                  <span className="text-[10px] text-slate-400 block font-bold">تم رصد درجاتهم</span>
+                  <strong className="text-[#5C2C90] text-sm font-black">{scoringClassStats.graded} / {scoringClassStats.total}</strong>
+                </div>
+                <div className="bg-white/80 p-2 rounded-xl border border-purple-100">
+                  <span className="text-[10px] text-slate-400 block font-bold">متوسط درجات الفصل</span>
+                  <strong className="text-indigo-700 text-sm font-black font-mono">{scoringClassStats.avg}</strong>
+                </div>
+                <div className="bg-white/80 p-2 rounded-xl border border-purple-100">
+                  <span className="text-[10px] text-slate-400 block font-bold">نسبة الاجتياز</span>
+                  <strong className="text-emerald-700 text-sm font-black font-mono">{scoringClassStats.passRate}</strong>
+                </div>
+              </div>
             </div>
 
             {loadingScores ? (
               <div className="py-12 text-center text-slate-400 text-xs">جارٍ تحميل كشف درجات الطلاب...</div>
             ) : examScores.length === 0 ? (
               <div className="py-12 text-center text-slate-400 text-xs">لا يوجد طلاب مسجلون بهذا الامتحان بعد.</div>
+            ) : filteredExamScores.length === 0 ? (
+              <div className="py-12 text-center text-slate-400 text-xs">لا يوجد طلاب يطابقون تصفية الفصل أو البحث المختار.</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-right text-xs">
@@ -732,7 +1106,7 @@ export default function AssessmentView({ user }) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {examScores.map((score, idx) => {
+                    {filteredExamScores.map((score, idx) => {
                       const val = scoringInputs[score.studentId] ?? score.score;
                       const isPassing = Number(val) >= selectedExamForScoring.passingScore;
 
@@ -741,7 +1115,7 @@ export default function AssessmentView({ user }) {
                           <td className="py-2.5 px-3 font-mono text-slate-400">{idx + 1}</td>
                           <td className="py-2.5 px-3 font-bold text-slate-900">{score.studentName}</td>
                           <td className="py-2.5 px-3 font-mono text-slate-500">{score.studentCode}</td>
-                          <td className="py-2.5 px-3 font-bold text-purple-800">{score.classroom}</td>
+                          <td className="py-2.5 px-3 font-bold text-purple-800">فصل {score.classroom}</td>
                           <td className="py-2.5 px-3 text-center">
                             <input
                               type="number"
